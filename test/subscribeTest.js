@@ -216,7 +216,7 @@ describe('subscribe', function () {
     const newJobCheckInterval = 100
 
     return new Promise((resolve) => {
-      boss.subscribe(queue, { teamSize, teamConcurrency, newJobCheckInterval }, async () => {
+      boss.subscribe(queue, { teamSize, teamConcurrency, newJobCheckInterval, refill: true }, async () => {
         subscribeCount++
         if (subscribeCount === 1) {
           // Test would timeout if all were blocked on this first
@@ -246,7 +246,7 @@ describe('subscribe', function () {
     }
 
     // This should consume 5 jobs, all will block after the first job
-    await boss.subscribe(queue, { teamSize, teamConcurrency, newJobCheckInterval }, async () => {
+    await boss.subscribe(queue, { teamSize, teamConcurrency, newJobCheckInterval, refill: true }, async () => {
       subscribeCount++
       if (subscribeCount > 1) await new Promise(resolve => setTimeout(resolve, 1000))
     })
@@ -254,7 +254,7 @@ describe('subscribe', function () {
     await new Promise(resolve => setTimeout(resolve, 400))
 
     // If the above hasn't over subscribed, this should pick up the last 2 jobs
-    await boss.subscribe(queue, { teamSize, teamConcurrency, newJobCheckInterval }, async () => {
+    await boss.subscribe(queue, { teamSize, teamConcurrency, newJobCheckInterval, refill: true }, async () => {
       remainCount++
     })
 
