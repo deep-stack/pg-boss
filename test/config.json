@@ -5,5 +5,6 @@
 	"user": "postgres",
 	"password": "postgres",
   "uuid": "v1",
-  "max": 3
+  "max": 3,
+  "dbFile": "test/test.sqlite"
 }
