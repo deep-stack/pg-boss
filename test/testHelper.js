@@ -60,7 +60,10 @@ async function getDb (database) {
 
 async function dropSchema (schema) {
   const db = await getDb()
-  await db.executeSql(`DROP SCHEMA IF EXISTS ${schema} CASCADE`)
+  await db.executeSql(
+    `DROP TABLE IF EXISTS ${schema}_version`,
+    `DROP TABLE IF EXISTS ${schema}_job`
+  )
   await db.close()
 }
 

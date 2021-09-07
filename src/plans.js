@@ -73,7 +73,6 @@ function locked (query) {
 
 function create (schema, version) {
   const commands = [
-    createSchema(schema),
     createVersionTable(schema),
     createJobStateEnum(schema),
     createJobTable(schema),
@@ -94,60 +93,45 @@ function create (schema, version) {
   return locked(commands)
 }
 
-function createSchema (schema) {
-  return `
-    CREATE SCHEMA IF NOT EXISTS ${schema}
-  `
-}
-
 function createVersionTable (schema) {
   return `
-    CREATE TABLE ${schema}.version (
-      version int primary key,
-      maintained_on timestamp with time zone,
-      cron_on timestamp with time zone
-    )
-  `
-}
-
-function createJobStateEnum (schema) {
-  // ENUM definition order is important
-  // base type is numeric and first values are less than last values
-  return `
-    CREATE TYPE ${schema}.job_state AS ENUM (
-      '${states.created}',
-      '${states.retry}',
-      '${states.active}',
-      '${states.completed}',
-      '${states.expired}',
-      '${states.cancelled}',
-      '${states.failed}'
+    CREATE TABLE ${schema}_version (
+      version INTEGER PRIMARY KEY NOT NULL,
+      maintained_on TEXT,
+      cron_on TEXT
     )
   `
 }
 
 function createJobTable (schema) {
   return `
-    CREATE TABLE ${schema}.job (
-      id uuid primary key not null default gen_random_uuid(),
-      name text not null,
-      priority integer not null default(0),
-      data jsonb,
-      state ${schema}.job_state not null default('${states.created}'),
-      retryLimit integer not null default(0),
-      retryCount integer not null default(0),
-      retryDelay integer not null default(0),
-      retryBackoff boolean not null default false,
-      startAfter timestamp with time zone not null default now(),
-      startedOn timestamp with time zone,
-      singletonKey text,
-      singletonOn timestamp without time zone,
-      expireIn interval not null default interval '15 minutes',
-      createdOn timestamp with time zone not null default now(),
-      completedOn timestamp with time zone,
-      keepUntil timestamp with time zone NOT NULL default now() + interval '14 days',
-      on_complete boolean not null default false,
-      output jsonb
+    CREATE TABLE ${schema}_job (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      priority INTEGER NOT NULL DEFAULT 0,
+      data TEXT,
+      state TEXT CHECK ( state IN (
+        '${states.created}',
+        '${states.retry}',
+        '${states.active}',
+        '${states.completed}',
+        '${states.expired}',
+        '${states.cancelled}',
+        '${states.failed}') ) NOT NULL DEFAULT '${states.created}',
+      retryLimit INTEGER NOT NULL DEFAULT 0,
+      retryCount INTEGER NOT NULL DEFAULT 0,
+      retryDelay INTEGER NOT NULL DEFAULT 0,
+      retryBackoff INTEGER CHECK (retryBackoff IN (0, 1) ) NOT NULL DEFAULT 0,
+      startAfter TEXT NOT NULL DEFAULT strftime('%Y-%m-%dT%H:%M.%fZ', 'now'),
+      startedOn TEXT,
+      singletonKey TEXT,
+      singletonOn TEXT,
+      expireIn INTEGER,
+      createdOn TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M.%fZ', 'now')),
+      completedOn TEXT,
+      keepUntil TEXT NOT NULL DEFAULT (strftime(''%Y-%m-%dT%H:%M.%fZ'', 'now', '+14 days')),
+      on_complete INTEGER CHECK (on_complete IN (0, 1) ) NOT NULL DEFAULT 0,
+      output TEXT
     )
   `
 }
@@ -313,19 +297,18 @@ function fetchNextJob (schema) {
       SELECT id
       FROM ${schema}.job
       WHERE state < '${states.active}'
-        AND name LIKE $1
-        AND startAfter < now()
+        AND name LIKE ?
+        AND startAfter < strftime('%Y-%m-%dT%H:%M.%fZ', 'now')
       ORDER BY priority desc, createdOn, id
-      LIMIT $2
-      FOR UPDATE SKIP LOCKED
+      LIMIT ?
     )
     UPDATE ${schema}.job j SET
       state = '${states.active}',
-      startedOn = now(),
+      startedOn = strftime('%Y-%m-%dT%H:%M.%fZ', 'now'),
       retryCount = CASE WHEN state = '${states.retry}' THEN retryCount + 1 ELSE retryCount END
     FROM nextJob
     WHERE j.id = nextJob.id
-    RETURNING ${includeMetadata ? 'j.*' : 'j.id, name, data'}, EXTRACT(epoch FROM expireIn) as expire_in_seconds
+    RETURNING ${includeMetadata ? 'j.*' : 'j.id, name, data'}, strftime('%s', expireIn) AS expire_in_seconds;
   `
 }
 
