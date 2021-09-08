@@ -74,7 +74,6 @@ function locked (query) {
 function create (schema, version) {
   const commands = [
     createVersionTable(schema),
-    createJobStateEnum(schema),
     createJobTable(schema),
     cloneJobTableForArchive(schema),
     createScheduleTable(schema),
@@ -233,21 +232,21 @@ function createIndexJobFetch (schema) {
 
 function createScheduleTable (schema) {
   return `
-    CREATE TABLE ${schema}.schedule (
-      name text primary key,
-      cron text not null,
-      timezone text,
-      data jsonb,
-      options jsonb,
-      created_on timestamp with time zone not null default now(),
-      updated_on timestamp with time zone not null default now()
+    CREATE TABLE ${schema}_schedule (
+      name TEXT PRIMARY KEY,
+      cron TEXT NOT NULL,
+      timezone TEXT,
+      data TEXT,
+      options TEXT,
+      created_on TEXT NOT NULL DEFAULT strftime('%Y-%m-%dT%H:%M.%fZ', 'now'),
+      updated_on TEXT NOT NULL DEFAULT strftime('%Y-%m-%dT%H:%M.%fZ', 'now'),
     )
   `
 }
 
 function getSchedules (schema) {
   return `
-    SELECT * FROM ${schema}.schedule
+    SELECT * FROM ${schema}_schedule
   `
 }
 
@@ -272,11 +271,11 @@ function unschedule (schema) {
 }
 
 function getTime () {
-  return "SELECT round(date_part('epoch', now()) * 1000) as time"
+  return "SELECT round((julianday('now') - 2440587.5) * 86400.0 * 1000) as time"
 }
 
 function getVersion (schema) {
-  return `SELECT version from ${schema}.version`
+  return `SELECT version from ${schema}_version`
 }
 
 function setVersion (schema, version) {
@@ -284,7 +283,7 @@ function setVersion (schema, version) {
 }
 
 function versionTableExists (schema) {
-  return `SELECT to_regclass('${schema}.version') as name`
+  return `SELECT name FROM sqlite_master WHERE type='table' AND name='${schema}_version'`
 }
 
 function insertVersion (schema, version) {

@@ -2,6 +2,7 @@ const fs = require('fs')
 const EventEmitter = require('events')
 const initSqlJs = require('sql.js')
 
+// TODO: Remove use of fs module as this is supposed to be used in browser. 
 class Db extends EventEmitter {
   constructor (config) {
     super()
@@ -24,14 +25,12 @@ class Db extends EventEmitter {
 
   async close () {
     try {
-      if (!this.pool.ending) {
-        this.opened = false
-        const data = this.db.export()
-        this.db.close()
+      this.opened = false
+      const data = this.db.export()
+      this.db.close()
 
-        const buffer = Buffer.from(data)
-        fs.writeFileSync(this.config.dbFile, buffer)
-      }
+      const buffer = Buffer.from(data)
+      fs.writeFileSync(this.config.dbFile, buffer)
     } catch (err) {
       this.emit('error', err)
     }
@@ -41,15 +40,24 @@ class Db extends EventEmitter {
     try {
       if (this.opened) {
         const res = this.db.exec(text, values)
+        const rowCount = this.db.getRowsModified()
+        const toReturn = { rows: [], rowCount }
 
-        // Get rows of result as objects, associating column names with their value in the current row.
-        const keys = res[0].columns
-        return res[0].values.map(function (row) {
-          return keys.reduce(function (obj, key, i) {
-            obj[key] = row[i]
-            return obj
-          }, {})
-        })
+        if (res.length > 0) {
+          console.log(res)
+          // Get rows of result as objects, associating column names with their value in the current row.
+          const keys = res[0].columns
+          const rows = res[0].values.map(function (row) {
+            return keys.reduce(function (obj, key, i) {
+              obj[key] = row[i]
+              return obj
+            }, {})
+          })
+
+          toReturn.rows = rows
+        }
+
+        return toReturn
       }
     } catch (err) {
       this.emit('error', err)
